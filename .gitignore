@@ -1,0 +1,2 @@
+# Ignore LiveKit config file which contains secrets
+livekit.yaml
