@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/livekit/protocol/auth"
@@ -18,9 +19,22 @@ func Init() error {
 	return sh.Run("docker", "run --rm -v $PWD:/output livekit/generate --local")
 }
 
+func Redis() error {
+	return sh.Run("docker", "run --rm -p 6379:6379 -e ALLOW_EMPTY_PASSWORD=yes bitnami/redis")
+}
+
 func Livekit() error {
-	// Get node IP
-	nodeIP, err := getLinuxNodeIP()
+	// Get node IP based on OS
+	var nodeIP string
+	var err error
+	switch runtime.GOOS {
+	case "linux":
+		nodeIP, err = getLinuxNodeIP()
+	case "darwin":
+		nodeIP, err = getMacNodeIP()
+	default:
+		return errors.New(fmt.Sprintf("OS %s not supported yet", runtime.GOOS))
+	}
 	if err != nil {
 		return err
 	}
@@ -39,7 +53,7 @@ func Livekit() error {
 		"-p", "7881:7881",
 		"-p", "7882:7882/udp",
 		"-v", volumeMap,
-		"livekit/livekit-server",
+		"livekit/livekit-server:latest",
 		"--config", "/livekit.yaml",
 		"--node-ip", nodeIP,
 	)
@@ -56,6 +70,13 @@ func getLinuxNodeIP() (string, error) {
 	hostIPs := strings.Split(hostname, " ")
 	nodeIP := hostIPs[0]
 	return nodeIP, nil
+}
+
+func getMacNodeIP() (string, error) {
+	// Command used:
+	// ipconfig getifaddr en0,
+	// which will output the IP directly
+	return sh.Output("ipconfig", "getifaddr", "en0")
 }
 
 type LiveKitConfig struct {
